@@ -6,83 +6,89 @@
 //
 
 import SwiftUI
-import CoreData
+import Alamofire
 
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
-
+    @State var currencyList = [String]()
+    @State var input = "100"
+    @State var base = "USD"
+    @FocusState private var inputIsFocused: Bool
+    
+    private let cache = NSCache<NSString, NSArray>()
+    
+    func makeRequest(showAll: Bool, currencies: [String] = ["USD", "GBP", "EUR"]) {
+        apiRequest(url: "https://api.exchangerate.host/latest?base=\(base)&amount=\(input)") { currency in
+            var tempList = [String]()
+            
+            for currency in currency.rates {
+                
+                if showAll {
+                    tempList.append("\(currency.key) \(String(format: "%.2f",currency.value))")
+                } else if currencies.contains(currency.key)  {
+                    tempList.append("\(currency.key) \(String(format: "%.2f",currency.value))")
+                }
+                tempList.sort()
+            }
+            
+            currencyList.self = tempList
+        }
+        cache.setObject(currencyList as NSArray, forKey: "currency")
+    }
+    
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
+        VStack() {
+            HStack {
+                Text("Currencies")
+                    .font(.system(size: 30))
+                    .bold()
+                
+                Image(systemName: "eurosign.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.blue)
+                
+            }
+            NavigationView {
+                VStack {
+                    List {
+                        ForEach(currencyList, id: \.self) { currency in
+                            NavigationLink(destination: CurrencyDetail(money: String(currency))) {
+                                Text(currency)
+                            }.navigationTitle("Available currencies")
+                        }
                     }
+                    Rectangle()
+                        .frame(height: 8.0)
+                        .foregroundColor(.blue)
+                        .opacity(0.90)
+                    TextField("Enter an amount" ,text: $input)
+                        .padding()
+                        .background(Color.gray.opacity(0.10))
+                        .cornerRadius(20.0)
+                        .padding()
+                        .keyboardType(.decimalPad)
+                        .focused($inputIsFocused)
+                    TextField("Enter a currency" ,text: $base)
+                        .padding()
+                        .background(Color.gray.opacity(0.10))
+                        .cornerRadius(20.0)
+                        .padding()
+                        .focused($inputIsFocused)
+                    Button("Convert!") {
+                        makeRequest(showAll: true)
+                        inputIsFocused = false
+                    }.padding()
                 }
-                .onDelete(perform: deleteItems)
+               
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
+            
+        }.onAppear() {
+            makeRequest(showAll: true)
         }
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
-
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        ContentView()
     }
 }

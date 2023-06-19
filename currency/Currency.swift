@@ -16,15 +16,11 @@ struct Currency: Codable {
     var rates = [String: Double]()
 }
 
-func apiRequest(url: String, completion: @escaping (Currency) -> ()) {
+func apiRequest(url: String) async throws -> Currency {
     
-    Session.default.request(url).responseDecodable(of: Currency.self) { response in
-        switch response.result {
-        case .success(let currencies):
-            print(currencies)
-            completion(currencies)
-        case .failure(let error):
-            print(error)
+    return try await withCheckedThrowingContinuation { continuation in
+        Session.default.request(url).responseDecodable(of: Currency.self) { response in
+            continuation.resume(with: response.result)
         }
     }
 }

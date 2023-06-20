@@ -10,13 +10,32 @@ import Alamofire
 
 struct CurrencyDetail: View {
     @State var currencyList = [String]()
+    @State private var viewState: ViewStates = .loading
     
     var money: String
     
     var body: some View {
+        switch viewState {
+        case .success(let info):
+            succsses(info)
+        case .error(_):
+            failure
+        case .loading:
+            loading
+                .onAppear {
+                    Task {
+                        await makeRequest(showAll: true)
+                    }
+                }
+        }
+    }
+    
+    private func succsses(_ info: [String]) -> some View {
         VStack() {
-            Text(money.prefix(3))
-            AsyncImage(url: URL(string: "https://flagsapi.com/\(money.prefix(2))/flat/64.png"))
+            HStack() {
+                AsyncImage(url: URL(string: "https://flagsapi.com/\(money.prefix(2))/flat/64.png")).frame(maxWidth: 65, maxHeight: 64)
+                Text(money.prefix(3))
+            }
             
             List {
                 ForEach(currencyList, id: \.self) { currency in
@@ -33,6 +52,31 @@ struct CurrencyDetail: View {
             }
         }
     }
+    
+    var failure: some View {
+        VStack(spacing: 100) {
+            Text("Couldn't load currencies")
+            
+            Button {
+                Task {
+                    await makeRequest(showAll: true)
+                }
+            } label: {
+                HStack {
+                    Text("Reload")
+                    
+                    Image(systemName: "arrow.2.circlepath")
+                }
+            }
+
+        }
+    }
+    
+    var loading: some View {
+        ProgressView()
+    }
+    
+    
     
     private func makeRequest(
         showAll: Bool = false,
@@ -51,12 +95,10 @@ struct CurrencyDetail: View {
                 }
                 tempList.sort()
             }
+            viewState = .success(tempList)
             currencyList = tempList
         } catch {
-            VStack {
-                Text("Error")
-                Text(error.localizedDescription)
-            }
+            viewState = .error(error)
         }
     }
 }
